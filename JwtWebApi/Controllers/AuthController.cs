@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using JwtWebApi.Services.UserService;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -12,12 +14,14 @@ namespace JwtWebApi.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IConfiguration configuration;
+        private readonly IUserService userService;
 
         public static User user { get; set; } = new User();
 
-        public AuthController(IConfiguration configuration)
+        public AuthController(IConfiguration configuration, IUserService userService)
         {
             this.configuration = configuration;
+            this.userService = userService;
         }
 
         private void CreatePasswordHash(string plainPassword,
@@ -29,6 +33,20 @@ namespace JwtWebApi.Controllers
                 passwordSalt = hmac.Key;
                 passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(plainPassword));
             }
+        }
+
+
+        //read claims
+        [HttpGet, Authorize]
+        public ActionResult<object> GetMe()
+        {
+            var usernameFinal = userService.GetMyName();
+            return Ok(usernameFinal);
+
+            //var userName = User?.Identity?.Name;
+            //var userName2 = User?.FindFirstValue(ClaimTypes.Name);
+            //var role = User?.FindFirstValue(ClaimTypes.Role);
+            //return Ok(new {userName, userName2, role});
         }
 
 
