@@ -54,6 +54,8 @@ namespace JwtWebApi.Controllers
         public async Task<ActionResult<User>> Register(UserDto request)
         {
             CreatePasswordHash(request.Password, out byte[] hash, out byte[] salt);
+
+            //in actual prod, save in db
             user.UserName = request.UserName;
             user.PasswordHash = hash;
             user.PasswordSalt= salt;
@@ -78,7 +80,58 @@ namespace JwtWebApi.Controllers
             //create token
             string token = CreateToken(user);
 
+            var refreshToken = GenerateRefreshToken();
+            SetRefreshToken(refreshToken);
+
             return Ok(token);
+        }
+
+        [HttpPost("refresh-token")]
+        public async Task<ActionResult<string>> RefreshToken()
+        {
+            var refreshToken = Request.Cookies["refreshToken"];
+
+            //in actual, look in database
+            if (!user.RefreshToken.Equals(refreshToken))
+            {
+                return Unauthorized("Invalid Refresh Token");
+            }
+            else if (user.TokenExpires < DateTime.Now)
+            {
+                return Unauthorized("Token Expired");
+            }
+
+            string token = CreateToken(user);
+            var newRefreshToken = GenerateRefreshToken();
+            SetRefreshToken(newRefreshToken);
+
+            return Ok(token);
+        }
+
+        private RefreshToken GenerateRefreshToken()
+        {
+            var refreshToken = new RefreshToken
+            {
+                Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+                Expires= DateTime.Now.AddDays(7),
+                Created= DateTime.Now
+            };
+            return refreshToken;
+        }
+
+        private void SetRefreshToken(RefreshToken newrefreshToken)
+        {
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Expires = newrefreshToken.Expires,
+            };
+            Response.Cookies.Append("refreshtoken", newrefreshToken.Token, cookieOptions);
+
+            //in actual prod, save in db
+            user.RefreshToken = newrefreshToken.Token;
+            user.TokenCreated = newrefreshToken.Created;
+            user.TokenExpires = newrefreshToken.Expires;
         }
 
         private string CreateToken(User user)
